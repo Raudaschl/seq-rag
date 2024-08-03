@@ -1,8 +1,28 @@
 from openai import OpenAI
+from groq import Groq
+
 import json
 import random
+import time
+import os
+from dotenv import load_dotenv
 
-client = OpenAI()
+load_dotenv()
+
+
+# Set client name = openai | groq
+client_name = "groq"
+
+if client_name == "openai":
+    OpenAI.api_key = os.environ.get("OPENAI_API_KEY")
+    client = OpenAI()
+    model_name = "gpt-4o-mini"
+elif client_name == "groq":
+    client = Groq(
+        api_key=os.environ.get("GROQ_API_KEY"),
+    )
+    model_name = "llama-3.1-8b-instant"
+
 
 # Mock APIs
 def weather_api(city, date):
@@ -72,7 +92,7 @@ def city_transport_api(city):
 
 def high_level_planning_agent(query):
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo-1106",
+        model=model_name,
         temperature=0,
         response_format={ "type": "json_object" },
         messages=[
@@ -111,7 +131,7 @@ Create a high-level plan for: {query}
 
 def detailed_planning_agent(high_level_plan):
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=model_name,
         temperature=0,
         response_format={ "type": "json_object" },
         messages=[
@@ -135,7 +155,8 @@ Parameters: city
 - Use the high-level plan to generate a detailed plan with specific API calls and parameters.
 - Ensure that the plan stays within the specified budget.
 - Write the detailed plan in JSON format than lists the steps with API calls and parameters.
-
+- MAX STEPS: 4  
+             
 ## Example Output:
 {{
     "steps": [
@@ -190,7 +211,7 @@ def action_agent(detailed_plan):
 
 def writing_agent(query, action_results):
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo-1106",
+        model=model_name,
         temperature=0,
         messages=[
             {"role": "system", "content": "You are an expert trip planning writing agent. Synthesize the given results into a coherent trip plan with detailed information."},
@@ -200,6 +221,9 @@ def writing_agent(query, action_results):
     return response.choices[0].message.content
 
 def seqrag(query):
+    # Start the timer
+    start_time = time.time()
+
     print(f"Query: {query}")
     
     high_level_plan = high_level_planning_agent(query)
@@ -210,9 +234,16 @@ def seqrag(query):
     
     action_results = action_agent(detailed_plan)
     print(f"\nAction Results: {json.dumps(action_results, indent=2)}")
+
+    print(f"Time taken for total plan processing: {time.time() - start_time:.2f} seconds")
+    print("Main processing done. Writing the final response...")
     
     final_response = writing_agent(query, action_results)
     print(f"\nFinal Trip Plan:\n{final_response}")
+
+    # End the timer
+    end_time = time.time()
+    print(f"\nTime taken: {end_time - start_time:.2f} seconds")
 
 if __name__ == "__main__":
     query = "Plan a 3-day trip to Paris for next month from New York"
